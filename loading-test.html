@@ -5,8 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>MindAR Loading Test</title>
 
-  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <script>
+    window.salmonAR = { scriptErrors: [] };
+    window.salmonAR.scriptFailed = function (src) { window.salmonAR.scriptErrors.push(src); };
+  </script>
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"
+          onerror="window.salmonAR.scriptFailed('A-Frame (aframe.io)')"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"
+          onerror="window.salmonAR.scriptFailed('MindAR (cdn.jsdelivr.net)')"></script>
 
   <style>
     body { margin: 0; font-family: -apple-system, system-ui, sans-serif; }
@@ -18,11 +24,35 @@
     }
     #status .dot { display:inline-block; width:8px; height:8px; border-radius:50%;
       background:#4cd2b0; margin-right:7px; vertical-align:middle; }
+
+    #fatal {
+      position: fixed; inset: 0; z-index: 1000; display: none;
+      align-items: center; justify-content: center; padding: 24px;
+      background: linear-gradient(160deg, #0c1c28, #122b3a); color: #eaf4f4; overflow: auto;
+    }
+    #fatal.show { display: flex; }
+    #fatal .card {
+      max-width: 460px; width: 100%; background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; padding: 24px 22px;
+    }
+    #fatal h1 { font-size: 19px; margin: 0 0 6px; }
+    #fatal .lead { font-size: 15px; color: #b9d2d6; margin: 0 0 16px; line-height: 1.45; }
+    #fatal ul { margin: 0; padding-left: 20px; }
+    #fatal li { font-size: 14.5px; line-height: 1.55; margin-bottom: 8px; }
+    #fatal code { background: rgba(255,255,255,0.1); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
   </style>
 </head>
 
 <body>
   <div id="status"><span class="dot"></span>Point at the MindAR card image</div>
+
+  <div id="fatal" role="alert" aria-live="assertive">
+    <div class="card">
+      <h1 id="fatal-title">Something went wrong</h1>
+      <p class="lead" id="fatal-lead"></p>
+      <ul id="fatal-list"></ul>
+    </div>
+  </div>
 
   <!-- These two sources are MindAR's OWN hosted example files. Nothing local is required,
        so if THIS hangs, the problem is your environment (http vs https, blocked CDN),
@@ -53,15 +83,70 @@
   <script>
     const sceneEl = document.querySelector('a-scene');
     const status = document.getElementById('status');
-    sceneEl.addEventListener('loaded', () => {
-      const target = document.querySelector('[mindar-image-target]');
-      target.addEventListener('targetFound', () => {
-        status.innerHTML = '<span class="dot"></span>Tracking — setup works';
+    let arReady = false, fatalShown = false;
+
+    function showFatal(title, lead, items) {
+      if (fatalShown) return;
+      fatalShown = true;
+      document.getElementById('fatal-title').textContent = title;
+      document.getElementById('fatal-lead').textContent = lead;
+      const list = document.getElementById('fatal-list');
+      list.innerHTML = '';
+      (items || []).forEach((html) => {
+        const li = document.createElement('li');
+        li.innerHTML = html;
+        list.appendChild(li);
       });
-      target.addEventListener('targetLost', () => {
-        status.innerHTML = '<span class="dot"></span>Point at the MindAR card image';
+      document.getElementById('fatal').classList.add('show');
+      status.style.display = 'none';
+      document.querySelectorAll('.mindar-ui-overlay').forEach((el) => { el.style.display = 'none'; });
+    }
+
+    const isLocalhost = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+    if (location.protocol === 'file:' || (!window.isSecureContext && !isLocalhost)) {
+      const how = location.protocol === 'file:'
+        ? 'You opened the file directly (<code>file://</code>).'
+        : 'This page is served over <code>' + location.protocol + '//</code>.';
+      showFatal(
+        'Camera blocked — needs HTTPS',
+        'AR needs the camera, and browsers only grant camera access on a secure connection.',
+        [
+          how + ' That blocks the camera, so nothing can start — and it is NOT a problem with your assets.',
+          'Host over <code>https://</code> (GitHub Pages / Netlify / Vercel), or test via <code>http://localhost</code>.'
+        ]
+      );
+    } else if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showFatal('Camera not available', 'This browser does not expose a camera API.',
+        ['Open in Safari (iOS) or Chrome (Android). Avoid in-app browsers.']);
+    } else if (window.salmonAR.scriptErrors.length || typeof AFRAME === 'undefined') {
+      const failed = window.salmonAR.scriptErrors.length ? window.salmonAR.scriptErrors : ['A-Frame / MindAR'];
+      showFatal("Couldn't load required libraries", 'A required script did not load.',
+        ['Failed: <code>' + failed.join('</code>, <code>') + '</code>.', 'Check your connection; the CDNs may be blocked on this network.']);
+    }
+
+    if (!fatalShown && typeof AFRAME !== 'undefined') {
+      sceneEl.addEventListener('arReady', () => { arReady = true; });
+      sceneEl.addEventListener('arError', () => {
+        showFatal("Couldn't start the camera",
+          'The AR engine failed to start — almost always a camera-permission issue.',
+          ['Tap <strong>Allow</strong> when asked for camera access.', 'Clear a previously-denied permission for this site and reload.']);
       });
-    });
+      sceneEl.addEventListener('loaded', () => {
+        const target = document.querySelector('[mindar-image-target]');
+        target.addEventListener('targetFound', () => {
+          status.innerHTML = '<span class="dot"></span>Tracking — setup works';
+        });
+        target.addEventListener('targetLost', () => {
+          status.innerHTML = '<span class="dot"></span>Point at the MindAR card image';
+        });
+      });
+      setTimeout(() => {
+        if (!arReady && !fatalShown) {
+          showFatal('Still loading…', 'The AR camera is taking longer than expected to start.',
+            ['Reload and tap <strong>Allow</strong> for the camera.', 'Close other apps/tabs using the camera, then reload.']);
+        }
+      }, 15000);
+    }
   </script>
 </body>
 </html>

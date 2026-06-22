@@ -14,7 +14,24 @@ Built with A-Frame + MindAR (image tracking). No app install required.
 ## IMPORTANT
 WebAR needs the camera, which browsers only allow over **https://** (any host)
 or **http://localhost**. Do NOT open these by double-clicking the file —
-`file://` is blocked and the page will hang on the loading spinner forever.
+`file://` is blocked because the camera is unavailable there.
+
+The pages now detect this and show a clear on-screen message explaining the
+cause (instead of hanging on the loading spinner forever).
+
+## Troubleshooting — "the app isn't loading"
+The most common reasons the page sits on a spinner, in order:
+1. **Opened over `file://` or plain `http://`** — the camera is blocked. Serve
+   over `https://` (GitHub Pages / Netlify / Vercel) or `http://localhost`.
+2. **Camera permission denied/dismissed** — reload and tap **Allow**. If you
+   blocked it before, clear the site permission in your browser and reload.
+3. **CDN blocked / offline** — `aframe.io` and `cdn.jsdelivr.net` must be
+   reachable.
+4. **Another app/tab holding the camera** — close it and reload.
+
+If you see the salmon template hang but want to confirm your setup, deploy
+`loading-test.html` first — it uses MindAR's own hosted card + model, so if it
+works, your environment is fine and the issue is your local assets.
 
 ## Deploy
 1. Push this folder to GitHub.

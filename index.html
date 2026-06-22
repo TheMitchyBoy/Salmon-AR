@@ -5,16 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Ketchikan Creek — Salmon AR</title>
 
+  <!-- Diagnostics bootstrap. Runs before anything else so we can catch a CDN script
+       that fails to load, and so the rest of the page can report problems clearly
+       instead of leaving the user stuck on an infinite loading spinner. -->
+  <script>
+    window.salmonAR = { scriptErrors: [] };
+    window.salmonAR.scriptFailed = function (src) {
+      window.salmonAR.scriptErrors.push(src);
+    };
+  </script>
+
   <!-- 1) A-Frame core. 1.6.0 is the version MindAR's current quick-start pairs with.
           If anything renders oddly, drop to 1.5.0 — both are known-good with mind-ar 1.2.5. -->
-  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"
+          onerror="window.salmonAR.scriptFailed('A-Frame (aframe.io)')"></script>
 
   <!-- 2) MindAR image-tracking, A-Frame build. This is what watches the camera for your printed sign. -->
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"
+          onerror="window.salmonAR.scriptFailed('MindAR (cdn.jsdelivr.net)')"></script>
 
   <!-- 3) aframe-extras gives you the "animation-mixer" component, which plays the swim
           animation baked into your GLB salmon model. -->
-  <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"
+          onerror="window.salmonAR.scriptFailed('aframe-extras (cdn.jsdelivr.net)')"></script>
 
   <style>
     /* Keep the UI almost invisible — the salmon are the thing people should look at. */
@@ -44,12 +57,73 @@
       margin-right: 7px;
       vertical-align: middle;
     }
+
+    /* Fatal/diagnostic overlay. Shown only when something goes wrong so the user
+       gets a clear reason instead of staring at MindAR's loading spinner forever. */
+    #fatal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: linear-gradient(160deg, #0c1c28, #122b3a);
+      color: #eaf4f4;
+      -webkit-overflow-scrolling: touch;
+      overflow: auto;
+    }
+    #fatal.show { display: flex; }
+    #fatal .card {
+      max-width: 460px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 24px 22px;
+    }
+    #fatal h1 {
+      font-size: 19px;
+      margin: 0 0 6px;
+    }
+    #fatal .lead {
+      font-size: 15px;
+      color: #b9d2d6;
+      margin: 0 0 16px;
+      line-height: 1.45;
+    }
+    #fatal ul { margin: 0; padding-left: 20px; }
+    #fatal li { font-size: 14.5px; line-height: 1.55; margin-bottom: 8px; }
+    #fatal code {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 1px 6px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    #fatal .badge {
+      display: inline-block;
+      font-size: 12px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: #ffd27d;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 
 <body>
   <!-- Status pill. Starts as an instruction, switches to "running" once the sign is detected. -->
   <div id="status"><span class="dot"></span>Point your phone at the salmon sign</div>
+
+  <!-- Diagnostic overlay. Hidden until something fails; content is filled in by JS. -->
+  <div id="fatal" role="alert" aria-live="assertive">
+    <div class="card">
+      <div class="badge">Salmon AR</div>
+      <h1 id="fatal-title">Something went wrong</h1>
+      <p class="lead" id="fatal-lead"></p>
+      <ul id="fatal-list"></ul>
+    </div>
+  </div>
 
   <a-scene
     mindar-image="imageTargetSrc: ./targets.mind; autoStart: true;"
@@ -109,18 +183,132 @@
     const sceneEl = document.querySelector('a-scene');
     const status = document.getElementById('status');
 
-    // MindAR fires these events on the target entity when it finds / loses your sign.
-    sceneEl.addEventListener('loaded', () => {
-      const target = document.querySelector('[mindar-image-target]');
+    let arReady = false;   // MindAR engine + camera are live
+    let fatalShown = false;
 
-      target.addEventListener('targetFound', () => {
-        status.innerHTML = '<span class="dot"></span>The salmon are running';
+    // Render the diagnostic overlay. This is the whole point of this file's error
+    // handling: turn MindAR's silent, endless loading spinner into a clear reason.
+    function showFatal(title, lead, items) {
+      if (fatalShown) return;
+      fatalShown = true;
+
+      document.getElementById('fatal-title').textContent = title;
+      document.getElementById('fatal-lead').textContent = lead;
+
+      const list = document.getElementById('fatal-list');
+      list.innerHTML = '';
+      (items || []).forEach((html) => {
+        const li = document.createElement('li');
+        li.innerHTML = html;
+        list.appendChild(li);
       });
 
-      target.addEventListener('targetLost', () => {
-        status.innerHTML = '<span class="dot"></span>Point your phone at the salmon sign';
+      document.getElementById('fatal').classList.add('show');
+      status.style.display = 'none';
+
+      // Hide MindAR's spinner / scanning UI so it doesn't sit behind the message.
+      document.querySelectorAll('.mindar-ui-overlay').forEach((el) => {
+        el.style.display = 'none';
       });
-    });
+    }
+
+    // ---- Pre-flight checks: catch the most common "app won't load" causes early. ----
+
+    // 1) Insecure context. Browsers only allow camera access on https:// or
+    //    http://localhost. Opening the file directly (file://) or over plain http
+    //    on a phone is the #1 reason this page hangs forever.
+    const isLocalhost = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+    // Note: Chrome treats file:// as a "secure context", so check the protocol
+    // explicitly — file:// is the most common reason this page never starts.
+    if (location.protocol === 'file:' || (!window.isSecureContext && !isLocalhost)) {
+      const how = location.protocol === 'file:'
+        ? 'You opened the file directly (<code>file://</code>).'
+        : 'This page is being served over <code>' + location.protocol + '//</code>.';
+      showFatal(
+        'Camera blocked — needs HTTPS',
+        'AR needs the camera, and browsers only grant camera access on a secure connection.',
+        [
+          how + ' That blocks the camera, so the app can never start.',
+          'Host the files over <code>https://</code> — GitHub Pages, Netlify, and Vercel all do this for free.',
+          'For local testing, run a server and open <code>http://localhost</code> (e.g. <code>python3 -m http.server</code>).'
+        ]
+      );
+    }
+
+    // 2) Camera API missing entirely (very old / non-standard browser).
+    else if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showFatal(
+        'Camera not available',
+        'This browser does not expose a camera API, so image tracking cannot run.',
+        [
+          'Open the link in a modern mobile browser such as Safari (iOS) or Chrome (Android).',
+          'Make sure you are not inside an in-app browser (e.g. a link opened from a chat app) — those sometimes block the camera.'
+        ]
+      );
+    }
+
+    // 3) A required CDN script failed to load (offline, blocked, or CDN down).
+    else if (window.salmonAR.scriptErrors.length || typeof AFRAME === 'undefined') {
+      const failed = window.salmonAR.scriptErrors.length
+        ? window.salmonAR.scriptErrors
+        : ['A-Frame / MindAR'];
+      showFatal(
+        "Couldn't load required libraries",
+        'One or more scripts this app depends on did not load.',
+        [
+          'Failed to load: <code>' + failed.join('</code>, <code>') + '</code>.',
+          'Check your internet connection and reload.',
+          'If you are on a restricted network, the CDNs (<code>aframe.io</code>, <code>cdn.jsdelivr.net</code>) may be blocked.'
+        ]
+      );
+    }
+
+    if (!fatalShown && typeof AFRAME !== 'undefined') {
+      // MindAR fires arReady when the camera + tracking engine are live, and
+      // arError if it cannot start (e.g. camera permission denied).
+      sceneEl.addEventListener('arReady', () => { arReady = true; });
+
+      sceneEl.addEventListener('arError', () => {
+        showFatal(
+          "Couldn't start the camera",
+          'The AR engine failed to start. This is almost always a camera-permission problem.',
+          [
+            'When the browser asks to use the camera, tap <strong>Allow</strong>.',
+            'If you blocked it before, clear the permission for this site (in your browser settings) and reload.',
+            'Close other apps or tabs that might be holding the camera.'
+          ]
+        );
+      });
+
+      // MindAR fires these events on the target entity when it finds / loses your sign.
+      sceneEl.addEventListener('loaded', () => {
+        const target = document.querySelector('[mindar-image-target]');
+
+        target.addEventListener('targetFound', () => {
+          status.innerHTML = '<span class="dot"></span>The salmon are running';
+        });
+
+        target.addEventListener('targetLost', () => {
+          status.innerHTML = '<span class="dot"></span>Point your phone at the salmon sign';
+        });
+      });
+
+      // Watchdog: if the camera/engine never comes up, surface guidance instead of
+      // leaving the user on a spinner with no idea what's wrong.
+      setTimeout(() => {
+        if (!arReady && !fatalShown) {
+          showFatal(
+            'Still loading…',
+            "The AR camera is taking longer than expected to start. Common causes:",
+            [
+              'Camera permission was dismissed or denied — reload and tap <strong>Allow</strong>.',
+              'A slow connection is still downloading the model — give it a moment and retry.',
+              'Another app or tab is using the camera — close it, then reload.'
+            ]
+          );
+        }
+      }, 15000);
+    }
   </script>
 </body>
 </html>
