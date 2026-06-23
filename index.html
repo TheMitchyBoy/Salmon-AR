@@ -15,37 +15,37 @@
     };
   </script>
 
-  <!-- Libraries are loaded from jsDelivr (a hardened, high-availability CDN) with a
-       second-CDN fallback each. We deliberately avoid A-Frame's own host
-       (aframe.io): it is prone to outages / rate-limiting, which previously left
-       the app stuck on "Couldn't load required libraries". Each fallback uses the
-       classic document.write pattern so load ORDER is preserved — A-Frame must be
-       present before MindAR and aframe-extras run. -->
+  <!-- Libraries are bundled LOCALLY (./vendor) so the app does not depend on any
+       external CDN. Restricted / corporate / mobile networks frequently block
+       CDNs (aframe.io, jsdelivr, unpkg), which is what caused "Couldn't load
+       required libraries". These files load from the same origin as this page, so
+       if the page loads at all, the libraries load too. A CDN is kept ONLY as a
+       last-resort fallback (via document.write so load ORDER is preserved —
+       A-Frame must exist before MindAR and aframe-extras run). -->
 
   <!-- 1) A-Frame core. 1.6.0 is the version MindAR's current quick-start pairs with.
-          If anything renders oddly, drop to 1.5.0 — both are known-good with mind-ar 1.2.5. -->
-  <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-master.min.js"
-          onerror="window.salmonAR.scriptFailed('A-Frame (jsdelivr)')"></script>
+          If anything renders oddly, swap in 1.5.0 — both are known-good with mind-ar 1.2.5. -->
+  <script src="./vendor/aframe-1.6.0.min.js"
+          onerror="window.salmonAR.scriptFailed('A-Frame (local)')"></script>
   <script>
-    window.AFRAME || (window.salmonAR.scriptFailed('A-Frame (jsdelivr)'),
-      document.write('<script src="https://unpkg.com/aframe@1.6.0/dist/aframe-master.min.js"><\/script>'));
+    window.AFRAME || document.write('<script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-master.min.js"><\/script>');
   </script>
 
   <!-- 2) MindAR image-tracking, A-Frame build. This is what watches the camera for your printed sign. -->
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"
-          onerror="window.salmonAR.scriptFailed('MindAR (jsdelivr)')"></script>
+  <script src="./vendor/mindar-image-aframe.prod.js"
+          onerror="window.salmonAR.scriptFailed('MindAR (local)')"></script>
   <script>
-    (window.AFRAME && AFRAME.components['mindar-image']) || (window.salmonAR.scriptFailed('MindAR (jsdelivr)'),
-      document.write('<script src="https://unpkg.com/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"><\/script>'));
+    (window.AFRAME && AFRAME.components['mindar-image']) ||
+      document.write('<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"><\/script>');
   </script>
 
   <!-- 3) aframe-extras gives you the "animation-mixer" component, which plays the swim
           animation baked into your GLB salmon model. -->
-  <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"
-          onerror="window.salmonAR.scriptFailed('aframe-extras (jsdelivr)')"></script>
+  <script src="./vendor/aframe-extras-7.2.0.min.js"
+          onerror="window.salmonAR.scriptFailed('aframe-extras (local)')"></script>
   <script>
     (window.AFRAME && AFRAME.components['animation-mixer']) ||
-      document.write('<script src="https://rawcdn.githack.com/c-frame/aframe-extras/v7.2.0/dist/aframe-extras.min.js"><\/script>');
+      document.write('<script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"><\/script>');
   </script>
 
   <style>

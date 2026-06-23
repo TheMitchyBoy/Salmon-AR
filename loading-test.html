@@ -9,20 +9,19 @@
     window.salmonAR = { scriptErrors: [] };
     window.salmonAR.scriptFailed = function (src) { window.salmonAR.scriptErrors.push(src); };
   </script>
-  <!-- jsDelivr primary + a second-CDN fallback (document.write preserves load order).
-       A-Frame's own host (aframe.io) is avoided — it is the usual cause of a
-       "Couldn't load required libraries" failure. -->
-  <script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-master.min.js"
-          onerror="window.salmonAR.scriptFailed('A-Frame (jsdelivr)')"></script>
+  <!-- Local-first (./vendor) so no external CDN is required; CDN kept only as a
+       last-resort fallback. Restricted/mobile networks blocking CDNs is the usual
+       cause of a "Couldn't load required libraries" failure. -->
+  <script src="./vendor/aframe-1.6.0.min.js"
+          onerror="window.salmonAR.scriptFailed('A-Frame (local)')"></script>
   <script>
-    window.AFRAME || (window.salmonAR.scriptFailed('A-Frame (jsdelivr)'),
-      document.write('<script src="https://unpkg.com/aframe@1.6.0/dist/aframe-master.min.js"><\/script>'));
+    window.AFRAME || document.write('<script src="https://cdn.jsdelivr.net/npm/aframe@1.6.0/dist/aframe-master.min.js"><\/script>');
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"
-          onerror="window.salmonAR.scriptFailed('MindAR (jsdelivr)')"></script>
+  <script src="./vendor/mindar-image-aframe.prod.js"
+          onerror="window.salmonAR.scriptFailed('MindAR (local)')"></script>
   <script>
-    (window.AFRAME && AFRAME.components['mindar-image']) || (window.salmonAR.scriptFailed('MindAR (jsdelivr)'),
-      document.write('<script src="https://unpkg.com/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"><\/script>'));
+    (window.AFRAME && AFRAME.components['mindar-image']) ||
+      document.write('<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"><\/script>');
   </script>
 
   <style>
