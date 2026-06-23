@@ -152,48 +152,65 @@
     device-orientation-permission-ui="enabled: false">
 
     <a-assets>
-      <!-- Swap this for your real salmon model. Must be a .glb with a swim animation clip baked in. -->
+      <!-- Swap this for your real salmon model. The bundled salmon.glb has NO baked
+           animation clip, so "swimming" is produced procedurally below (a tail-wag
+           yaw + a gentle bob) rather than with animation-mixer. -->
       <a-asset-item id="salmon" src="./salmon.glb"></a-asset-item>
     </a-assets>
 
     <!-- A camera with no look-controls — MindAR drives the view from the marker. -->
     <a-camera position="0 0 0" look-controls="false"></a-camera>
 
+    <!-- Explicit lights. Without these the GLB can render very dark (almost
+         invisible) over the bright camera feed, which reads as "no salmon". -->
+    <a-entity light="type: ambient; color: #ffffff; intensity: 1.4"></a-entity>
+    <a-entity light="type: directional; color: #ffffff; intensity: 2.2" position="0.5 1 1"></a-entity>
+
     <!-- Everything inside this entity is anchored to image target #0 (your first/only sign).
-         The marker is normalized so its WIDTH = 1 unit. So positions live roughly in
-         -0.5..0.5 on X, and your fish scale will be small. Tune to taste. -->
+         The marker is normalized so its WIDTH = 1 unit, so positions live roughly in
+         -0.5..0.5 on X. The salmon.glb is ~0.5 units long at scale 1, so a scale of
+         ~0.6 makes each fish about a third of the marker — clearly visible. The old
+         scale (~0.12) made them ~6% of the marker, i.e. nearly invisible. -->
     <a-entity mindar-image-target="targetIndex: 0">
 
-      <!-- Three salmon swimming "upstream" across the marker, staggered so they don't move in lockstep.
-           - animation-mixer  -> plays the swim clip inside the GLB (tail motion).
-           - animation         -> drifts the fish across the marker and loops.
-           - rotation          -> orient the model; depends on how YOUR glb was exported. Tune this. -->
-      <a-gltf-model
-        src="#salmon"
-        scale="0.12 0.12 0.12"
-        rotation="0 90 0"
-        position="-0.6 -0.15 0.05"
-        animation-mixer="timeScale: 1"
-        animation="property: position; from: -0.6 -0.15 0.05; to: 0.6 -0.15 0.05; dur: 7000; loop: true; easing: linear">
-      </a-gltf-model>
+      <!-- Each salmon = an outer entity that DRIFTS upstream (position on X) wrapping a
+           model that SWIMS in place (tail-wag yaw + bob). Splitting drift and swim onto
+           separate entities lets both run at once without fighting over one property.
+           rotation 0 0 0 keeps the fish broadside to the camera, facing +X (the drift
+           direction). If your model faces the other way, change rotation to 0 180 0. -->
 
-      <a-gltf-model
-        src="#salmon"
-        scale="0.10 0.10 0.10"
-        rotation="0 90 0"
-        position="-0.6 0.05 0.02"
-        animation-mixer="timeScale: 1.15"
-        animation="property: position; from: -0.6 0.05 0.02; to: 0.6 0.05 0.02; dur: 8500; loop: true; easing: linear; delay: 1500">
-      </a-gltf-model>
+      <!-- Salmon #1 -->
+      <a-entity
+        animation__drift="property: position; from: -0.65 -0.18 0.04; to: 0.65 -0.18 0.04; dur: 7000; loop: true; easing: linear">
+        <a-gltf-model class="salmon" src="#salmon"
+          scale="0.6 0.6 0.6"
+          rotation="0 0 0"
+          animation__swim="property: rotation; from: 0 -13 0; to: 0 13 0; dir: alternate; loop: true; dur: 460; easing: easeInOutSine"
+          animation__bob="property: position; from: 0 -0.02 0; to: 0 0.02 0; dir: alternate; loop: true; dur: 900; easing: easeInOutSine">
+        </a-gltf-model>
+      </a-entity>
 
-      <a-gltf-model
-        src="#salmon"
-        scale="0.14 0.14 0.14"
-        rotation="0 90 0"
-        position="-0.6 0.22 0.07"
-        animation-mixer="timeScale: 0.9"
-        animation="property: position; from: -0.6 0.22 0.07; to: 0.6 0.22 0.07; dur: 6000; loop: true; easing: linear; delay: 800">
-      </a-gltf-model>
+      <!-- Salmon #2 -->
+      <a-entity
+        animation__drift="property: position; from: -0.65 0.02 0.02; to: 0.65 0.02 0.02; dur: 8500; loop: true; easing: linear; delay: 1500">
+        <a-gltf-model class="salmon" src="#salmon"
+          scale="0.5 0.5 0.5"
+          rotation="0 0 0"
+          animation__swim="property: rotation; from: 0 -13 0; to: 0 13 0; dir: alternate; loop: true; dur: 400; easing: easeInOutSine"
+          animation__bob="property: position; from: 0 -0.02 0; to: 0 0.02 0; dir: alternate; loop: true; dur: 1000; easing: easeInOutSine">
+        </a-gltf-model>
+      </a-entity>
+
+      <!-- Salmon #3 -->
+      <a-entity
+        animation__drift="property: position; from: -0.65 0.2 0.07; to: 0.65 0.2 0.07; dur: 6000; loop: true; easing: linear; delay: 800">
+        <a-gltf-model class="salmon" src="#salmon"
+          scale="0.7 0.7 0.7"
+          rotation="0 0 0"
+          animation__swim="property: rotation; from: 0 -13 0; to: 0 13 0; dir: alternate; loop: true; dur: 520; easing: easeInOutSine"
+          animation__bob="property: position; from: 0 -0.025 0; to: 0 0.025 0; dir: alternate; loop: true; dur: 850; easing: easeInOutSine">
+        </a-gltf-model>
+      </a-entity>
 
     </a-entity>
   </a-scene>
@@ -310,6 +327,23 @@
         target.addEventListener('targetLost', () => {
           status.innerHTML = '<span class="dot"></span>Point your phone at the salmon sign';
         });
+
+        // If the salmon model itself fails to load, say so instead of showing an
+        // empty marker (which looks identical to "marker not detected").
+        const firstSalmon = document.querySelector('.salmon');
+        if (firstSalmon) {
+          firstSalmon.addEventListener('model-error', () => {
+            showFatal(
+              "Couldn't load the salmon model",
+              'The 3D model (salmon.glb) failed to load, so there is nothing to show on the marker.',
+              [
+                'Make sure <code>salmon.glb</code> is deployed next to <code>index.html</code>.',
+                'Check your connection — the model is several megabytes.',
+                'Reload the page and try again.'
+              ]
+            );
+          });
+        }
       });
 
       // Watchdog: if the camera/engine never comes up, surface guidance instead of

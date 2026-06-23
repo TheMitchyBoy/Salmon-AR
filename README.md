@@ -38,6 +38,24 @@ If you see the salmon template hang but want to confirm your setup, deploy
 `loading-test.html` first — it uses MindAR's own hosted card + model, so if it
 works, your environment is fine and the issue is your local assets.
 
+## Troubleshooting — "I don't see the salmon (no fish swimming)"
+The page loads and the camera works, but no fish appear on the marker:
+1. **Is the marker actually detected?** The status pill at the top changes from
+   "Point your phone at the salmon sign" to **"The salmon are running"** when the
+   printed image is recognised. If it never changes, the camera isn't matching
+   `targets.mind` — improve lighting, hold the phone steady and fill the frame
+   with the sign, and make sure the printed image matches the one `targets.mind`
+   was compiled from.
+2. **Fish too small / too large?** The salmon are sized in *marker units* (marker
+   width = 1). They're tuned to ~⅓ of the marker via the `scale` on each
+   `<a-gltf-model>` in `index.html`. Raise/lower those values to taste.
+3. **Fish facing the wrong way?** Change `rotation="0 0 0"` to `rotation="0 180 0"`
+   on the models.
+4. **No tail motion?** The bundled `salmon.glb` has **no baked animation clip**,
+   so the swim (tail-wag + bob) is generated procedurally in `index.html`. If you
+   swap in a rigged model that *does* contain a clip, you can instead add
+   `animation-mixer` back to the `<a-gltf-model>` to play it.
+
 ## Deploy
 
 ### Railway (recommended)
