@@ -134,9 +134,12 @@
       const buf = await res.arrayBuffer();
       const compiler = new window.MINDAR.IMAGE.Compiler();
       const dataList = compiler.importData(buf);
+      if (!dataList || !dataList.length) {
+        throw new Error('Could not read targets.mind — recompile the marker in admin and publish again.');
+      }
       const container = document.getElementById('markers');
       dataList.forEach((data, idx) => {
-        const src = data.imageList?.[0] || data.trackingImageList?.[0];
+        const src = data.targetImage || data.imageList?.[0] || data.trackingImageList?.[0];
         if (!src) return;
         const card = document.createElement('div');
         card.className = 'card';
