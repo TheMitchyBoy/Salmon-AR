@@ -58,31 +58,24 @@
   </script>
 
   <style>
-    /* Full-viewport AR — embedded/partial scenes leave white gaps around the camera feed. */
-    html, body {
+    /* MindAR puts the camera video at z-index: -2 on <body>. A black body background
+       paints OVER that video — causing a full black screen. Keep body transparent. */
+    html {
       margin: 0;
-      padding: 0;
-      width: 100%;
       height: 100%;
-      overflow: hidden;
       background: #000;
-      font-family: -apple-system, system-ui, sans-serif;
     }
 
-    a-scene {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: transparent;
+      font-family: -apple-system, system-ui, sans-serif;
     }
 
     a-scene .a-canvas {
       background: transparent !important;
-    }
-
-    /* MindAR appends the camera video to <body> — ensure it fills the screen. */
-    body > video {
-      object-fit: cover;
     }
 
     #status {
@@ -178,7 +171,7 @@
   </div>
 
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiScanning: yes; uiLoading: yes;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiScanning: yes; uiLoading: yes;"
     color-space="sRGB"
     renderer="alpha: true; colorManagement: true, physicallyCorrectLights"
     vr-mode-ui="enabled: false"
@@ -333,14 +326,22 @@
     }
 
     if (!fatalShown && typeof AFRAME !== 'undefined') {
+      // MindAR mounts the camera video on <body> with z-index: -2, which hides it
+      // behind the page background. Bump it as soon as it appears.
+      function liftCameraVideo() {
+        document.querySelectorAll('body > video').forEach((video) => {
+          video.style.zIndex = '0';
+        });
+        sceneEl.style.position = 'relative';
+        sceneEl.style.zIndex = '1';
+      }
+      new MutationObserver(liftCameraVideo).observe(document.body, { childList: true });
+      liftCameraVideo();
+
       sceneEl.addEventListener('arReady', () => {
         arReady = true;
+        liftCameraVideo();
         status.innerHTML = '<span class="dot"></span>Scanning — slowly fill the frame with your marker sign';
-
-        // Belt-and-suspenders: some devices leave gaps if MindAR video sizing is off.
-        document.querySelectorAll('body > video').forEach((video) => {
-          video.style.objectFit = 'cover';
-        });
       });
 
       sceneEl.addEventListener('arError', () => {
@@ -355,35 +356,7 @@
         );
       });
 
-      sceneEl.addEventListener('loaded', async () => {
-        // Verify the live marker file before starting MindAR (avoids silent scan failures).
-        try {
-          const markerRes = await fetch('./targets.mind');
-          if (!markerRes.ok) throw new Error('HTTP ' + markerRes.status);
-          const buf = await markerRes.arrayBuffer();
-          if (buf.byteLength < 64) throw new Error('file too small');
-          const markerName = markerRes.headers.get('X-Target-Name');
-          if (markerName) {
-            status.innerHTML = '<span class="dot"></span>Starting camera for: ' + decodeURIComponent(markerName);
-          }
-        } catch (err) {
-          showFatal(
-            "Couldn't load the marker file",
-            'MindAR needs a compiled <code>targets.mind</code> file to know what to scan for.',
-            [
-              'The server returned an error loading <code>./targets.mind</code> (' + err.message + ').',
-              'In <code>/admin.html</code>, publish a marker or click <strong>Restore bundled sign</strong>.',
-              'Make sure you are scanning the <strong>exact same image</strong> that was compiled.'
-            ]
-          );
-          return;
-        }
-
-        const mindar = sceneEl.systems['mindar-image-system'];
-        if (mindar && mindar.start) {
-          mindar.start();
-        }
-
+      sceneEl.addEventListener('loaded', () => {
         const target = document.querySelector('[mindar-image-target]');
 
         target.addEventListener('targetFound', () => {
