@@ -166,6 +166,7 @@
           <div class="target-list" id="target-list"></div>
           <div class="actions" style="margin-top:16px">
             <button class="secondary" id="refresh-btn">Refresh</button>
+            <button class="secondary" id="restore-default-btn">Restore bundled sign</button>
             <a href="/" style="align-self:center;font-size:14px">Open AR app →</a>
           </div>
         </section>
@@ -202,6 +203,7 @@
       targetList: document.getElementById('target-list'),
       libraryStatus: document.getElementById('library-status'),
       refreshBtn: document.getElementById('refresh-btn'),
+      restoreDefaultBtn: document.getElementById('restore-default-btn'),
     };
 
     function authHeaders(jsonBody = true) {
@@ -592,6 +594,17 @@
     els.publishBtn.onclick = publishTarget;
     els.downloadBtn.onclick = downloadCompiledMind;
     els.refreshBtn.onclick = loadTargets;
+    els.restoreDefaultBtn.onclick = async () => {
+      if (!(await ensureSignedIn())) return;
+      if (!confirm('Restore the original bundled salmon sign as the live marker?')) return;
+      try {
+        await api('/api/targets/restore-default', { method: 'POST', headers: authHeaders() });
+        setStatus(els.libraryStatus, 'Bundled salmon sign is now live.', 'ok');
+        await loadTargets();
+      } catch (err) {
+        setStatus(els.libraryStatus, err.message, 'err');
+      }
+    };
 
     boot();
   </script>

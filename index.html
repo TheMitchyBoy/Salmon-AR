@@ -60,6 +60,8 @@
   <style>
     /* Keep the UI almost invisible — the salmon are the thing people should look at. */
     body { margin: 0; font-family: -apple-system, system-ui, sans-serif; }
+    a-scene { display: block; }
+    a-scene .a-canvas { background: transparent !important; }
 
     #status {
       position: fixed;
@@ -154,9 +156,10 @@
   </div>
 
   <a-scene
-    mindar-image="imageTargetSrc: /api/targets/active; autoStart: true;"
+    embedded
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiScanning: yes; uiLoading: yes;"
     color-space="sRGB"
-    renderer="colorManagement: true, physicallyCorrectLights"
+    renderer="alpha: true; colorManagement: true, physicallyCorrectLights"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false">
 
@@ -309,9 +312,10 @@
     }
 
     if (!fatalShown && typeof AFRAME !== 'undefined') {
-      // MindAR fires arReady when the camera + tracking engine are live, and
-      // arError if it cannot start (e.g. camera permission denied).
-      sceneEl.addEventListener('arReady', () => { arReady = true; });
+      sceneEl.addEventListener('arReady', () => {
+        arReady = true;
+        status.innerHTML = '<span class="dot"></span>Scanning — slowly fill the frame with your marker sign';
+      });
 
       sceneEl.addEventListener('arError', () => {
         showFatal(
@@ -325,8 +329,35 @@
         );
       });
 
-      // MindAR fires these events on the target entity when it finds / loses your sign.
-      sceneEl.addEventListener('loaded', () => {
+      sceneEl.addEventListener('loaded', async () => {
+        // Verify the live marker file before starting MindAR (avoids silent scan failures).
+        try {
+          const markerRes = await fetch('./targets.mind');
+          if (!markerRes.ok) throw new Error('HTTP ' + markerRes.status);
+          const buf = await markerRes.arrayBuffer();
+          if (buf.byteLength < 64) throw new Error('file too small');
+          const markerName = markerRes.headers.get('X-Target-Name');
+          if (markerName) {
+            status.innerHTML = '<span class="dot"></span>Starting camera for: ' + decodeURIComponent(markerName);
+          }
+        } catch (err) {
+          showFatal(
+            "Couldn't load the marker file",
+            'MindAR needs a compiled <code>targets.mind</code> file to know what to scan for.',
+            [
+              'The server returned an error loading <code>./targets.mind</code> (' + err.message + ').',
+              'In <code>/admin.html</code>, publish a marker or click <strong>Restore bundled sign</strong>.',
+              'Make sure you are scanning the <strong>exact same image</strong> that was compiled.'
+            ]
+          );
+          return;
+        }
+
+        const mindar = sceneEl.systems['mindar-image-system'];
+        if (mindar && mindar.start) {
+          mindar.start();
+        }
+
         const target = document.querySelector('[mindar-image-target]');
 
         target.addEventListener('targetFound', () => {
@@ -334,7 +365,7 @@
         });
 
         target.addEventListener('targetLost', () => {
-          status.innerHTML = '<span class="dot"></span>Point your phone at the salmon sign';
+          status.innerHTML = '<span class="dot"></span>Scanning — point at the marker sign';
         });
 
         // If the salmon model itself fails to load, say so instead of showing an

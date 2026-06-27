@@ -61,6 +61,31 @@ function readBody(req, limit = 25 * 1024 * 1024) {
   });
 }
 
+function serveMindTarget(res, filePath, meta, reqMethod = 'GET') {
+  const headers = {
+    'Content-Type': 'application/octet-stream',
+    'Cache-Control': 'no-cache',
+  };
+  if (meta?.name) headers['X-Target-Name'] = encodeURIComponent(meta.name);
+  if (meta?.id) headers['X-Target-Id'] = meta.id;
+
+  fs.stat(filePath, (err, stat) => {
+    if (err || !stat.isFile()) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not Found');
+      return;
+    }
+    headers['Content-Length'] = stat.size;
+    if (reqMethod === 'HEAD') {
+      res.writeHead(200, headers);
+      res.end();
+      return;
+    }
+    res.writeHead(200, headers);
+    fs.createReadStream(filePath).pipe(res);
+  });
+}
+
 function serveFile(res, filePath, reqMethod = 'GET') {
   const ext = path.extname(filePath).toLowerCase();
   const headers = {
@@ -119,21 +144,20 @@ async function handleApi(req, res, urlPath) {
     return json(res, 200, { ok: true });
   }
 
-  if (urlPath === '/api/targets/active' && req.method === 'GET') {
+  if ((urlPath === '/api/targets/active') && (req.method === 'GET' || req.method === 'HEAD')) {
     const active = store.getActiveTarget();
     if (!active) {
       return json(res, 404, { error: 'No active target set' });
     }
-    const headers = {
-      'Content-Type': 'application/octet-stream',
-      'Content-Length': fs.statSync(active.filePath).size,
-      'Cache-Control': 'no-cache',
-      'X-Target-Id': active.meta.id,
-      'X-Target-Name': encodeURIComponent(active.meta.name),
-    };
-    res.writeHead(200, headers);
-    fs.createReadStream(active.filePath).pipe(res);
-    return;
+    return serveMindTarget(res, active.filePath, active.meta, req.method);
+  }
+
+  if (urlPath === '/api/targets/restore-default' && req.method === 'POST') {
+    if (!auth.requireAdmin(req, res)) return;
+    const entry = store.restoreBundledDefault();
+    return entry
+      ? json(res, 200, entry)
+      : json(res, 500, { error: 'Bundled targets.mind is missing on the server' });
   }
 
   if (urlPath === '/api/targets' && req.method === 'GET') {
@@ -244,6 +268,15 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Method Not Allowed');
     return;
+  }
+
+  // Live marker for MindAR — serves admin-published target, not the static file on disk.
+  if (urlPath === '/targets.mind') {
+    const active = store.getActiveTarget();
+    if (active) {
+      serveMindTarget(res, active.filePath, active.meta, req.method);
+      return;
+    }
   }
 
   let staticPath = urlPath;
