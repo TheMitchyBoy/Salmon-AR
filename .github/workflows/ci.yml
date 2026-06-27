@@ -34,6 +34,7 @@ jobs:
           TOKEN=$(curl -sf -X POST http://localhost:8080/api/auth/login \
             -H 'Content-Type: application/json' \
             -d '{"password":"test-password"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+          curl -sf http://localhost:8080/api/auth/check -H "Authorization: Bearer $TOKEN" | grep -q '"ok":true'
           curl -sf http://localhost:8080/api/targets -H "Authorization: Bearer $TOKEN" | grep -q '"targets"'
           curl -sf -X POST http://localhost:8080/api/targets \
             -H "Authorization: Bearer $TOKEN" \

@@ -109,6 +109,16 @@ async function handleApi(req, res, urlPath) {
     }
   }
 
+  if (urlPath === '/api/auth/check' && req.method === 'GET') {
+    if (!auth.adminEnabled()) {
+      return json(res, 503, { error: 'Admin is not configured. Set ADMIN_PASSWORD on the server.' });
+    }
+    if (!auth.isAuthorized(req)) {
+      return json(res, 401, { error: 'Not signed in. Enter your admin password again.' });
+    }
+    return json(res, 200, { ok: true });
+  }
+
   if (urlPath === '/api/targets/active' && req.method === 'GET') {
     const active = store.getActiveTarget();
     if (!active) {

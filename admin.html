@@ -387,6 +387,7 @@
 
     async function publishTarget() {
       if (!compiledBuffer) return;
+      if (!(await ensureSignedIn())) return;
 
       if (compiledBuffer.byteLength > MAX_UPLOAD_MB * 1024 * 1024) {
         setStatus(els.compileStatus, `File is ${(compiledBuffer.byteLength / (1024 * 1024)).toFixed(1)} MB — max ${MAX_UPLOAD_MB} MB. Re-compile with a smaller image, or use Download .mind backup.`, 'err');
@@ -424,7 +425,7 @@
         renderFileList();
         await loadTargets();
       } catch (err) {
-        if (String(err.message).includes('Unauthorized') || String(err.message).includes('Session expired')) {
+        if (String(err.message).includes('Not signed in') || String(err.message).includes('Unauthorized')) {
           token = '';
           localStorage.removeItem(TOKEN_KEY);
           els.app.classList.add('hidden');
@@ -495,6 +496,22 @@
       }
     }
 
+    async function ensureSignedIn() {
+      if (!token) return false;
+      try {
+        await api('/api/auth/check', { headers: authHeaders() });
+        return true;
+      } catch {
+        token = '';
+        localStorage.removeItem(TOKEN_KEY);
+        els.app.classList.add('hidden');
+        els.loginGate.classList.remove('hidden');
+        setStatus(els.loginError, 'Not signed in. Enter your admin password again.', 'err');
+        els.loginError.classList.remove('hidden');
+        return false;
+      }
+    }
+
     async function boot() {
       const health = await api('/api/health');
       if (!health.adminEnabled) {
@@ -511,6 +528,8 @@
       }
 
       try {
+        const ok = await ensureSignedIn();
+        if (!ok) return;
         await loadTargets();
         els.app.classList.remove('hidden');
       } catch {
@@ -526,10 +545,11 @@
         const data = await api('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: els.password.value }),
+          body: JSON.stringify({ password: els.password.value.trim() }),
         });
         token = data.token;
         localStorage.setItem(TOKEN_KEY, token);
+        els.password.value = '';
         els.loginGate.classList.add('hidden');
         els.app.classList.remove('hidden');
         await loadTargets();
