@@ -228,14 +228,13 @@
   <a-scene
     mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiScanning: yes; uiLoading: yes; maxTrack: 1; warmupTolerance: 1; missTolerance: 2; filterMinCF: 0.001; filterBeta: 500;"
     color-space="sRGB"
-    renderer="alpha: true; colorManagement: true, physicallyCorrectLights"
+    renderer="alpha: true; colorManagement: true; physicallyCorrectLights: false"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false">
 
-    <a-assets>
-      <!-- Swap this for your real salmon model. The bundled salmon.glb has NO baked
-           animation clip, so "swimming" is produced procedurally below (a tail-wag
-           yaw + a gentle bob) rather than with animation-mixer. -->
+    <a-assets timeout="120000">
+      <!-- salmon.glb is ~8 MB — the default 3 s assets timeout fires before it loads,
+           so the scene starts with no model. 120 s gives slow mobile links time. -->
       <a-asset-item id="salmon" src="./salmon.glb"></a-asset-item>
     </a-assets>
 
@@ -244,8 +243,8 @@
 
     <!-- Explicit lights. Without these the GLB can render very dark (almost
          invisible) over the bright camera feed, which reads as "no salmon". -->
-    <a-entity light="type: ambient; color: #ffffff; intensity: 1.4"></a-entity>
-    <a-entity light="type: directional; color: #ffffff; intensity: 2.2" position="0.5 1 1"></a-entity>
+    <a-entity light="type: ambient; color: #ffffff; intensity: 2.0"></a-entity>
+    <a-entity light="type: directional; color: #ffffff; intensity: 2.8" position="0.3 1 0.8"></a-entity>
 
     <!-- Everything inside this entity is anchored to image target #0 (your first/only sign).
          The marker is normalized so its WIDTH = 1 unit, so positions live roughly in
@@ -262,9 +261,9 @@
 
       <!-- Salmon #1 -->
       <a-entity
-        animation__drift="property: position; from: -0.65 -0.18 0.04; to: 0.65 -0.18 0.04; dur: 7000; loop: true; easing: linear">
+        animation__drift="property: position; from: -0.65 -0.18 0.15; to: 0.65 -0.18 0.15; dur: 7000; loop: true; easing: linear">
         <a-gltf-model class="salmon" src="#salmon"
-          scale="0.6 0.6 0.6"
+          scale="0.9 0.9 0.9"
           rotation="0 0 0"
           animation__swim="property: rotation; from: 0 -13 0; to: 0 13 0; dir: alternate; loop: true; dur: 460; easing: easeInOutSine"
           animation__bob="property: position; from: 0 -0.02 0; to: 0 0.02 0; dir: alternate; loop: true; dur: 900; easing: easeInOutSine">
@@ -273,9 +272,9 @@
 
       <!-- Salmon #2 -->
       <a-entity
-        animation__drift="property: position; from: -0.65 0.02 0.02; to: 0.65 0.02 0.02; dur: 8500; loop: true; easing: linear; delay: 1500">
+        animation__drift="property: position; from: -0.65 0.02 0.12; to: 0.65 0.02 0.12; dur: 8500; loop: true; easing: linear; delay: 1500">
         <a-gltf-model class="salmon" src="#salmon"
-          scale="0.5 0.5 0.5"
+          scale="0.75 0.75 0.75"
           rotation="0 0 0"
           animation__swim="property: rotation; from: 0 -13 0; to: 0 13 0; dir: alternate; loop: true; dur: 400; easing: easeInOutSine"
           animation__bob="property: position; from: 0 -0.02 0; to: 0 0.02 0; dir: alternate; loop: true; dur: 1000; easing: easeInOutSine">
@@ -284,9 +283,9 @@
 
       <!-- Salmon #3 -->
       <a-entity
-        animation__drift="property: position; from: -0.65 0.2 0.07; to: 0.65 0.2 0.07; dur: 6000; loop: true; easing: linear; delay: 800">
+        animation__drift="property: position; from: -0.65 0.2 0.18; to: 0.65 0.2 0.18; dur: 6000; loop: true; easing: linear; delay: 800">
         <a-gltf-model class="salmon" src="#salmon"
-          scale="0.7 0.7 0.7"
+          scale="1.05 1.05 1.05"
           rotation="0 0 0"
           animation__swim="property: rotation; from: 0 -13 0; to: 0 13 0; dir: alternate; loop: true; dur: 520; easing: easeInOutSine"
           animation__bob="property: position; from: 0 -0.025 0; to: 0 0.025 0; dir: alternate; loop: true; dur: 850; easing: easeInOutSine">
@@ -302,7 +301,44 @@
 
     let arReady = false;
     let targetFound = false;
+    let salmonModelsReady = 0;
     let fatalShown = false;
+
+    function tuneSalmonMaterials(root) {
+      const THREE = AFRAME.THREE;
+      const fallbackColor = new THREE.Color(0xe86a3a);
+      root.object3D.traverse((node) => {
+        if (!node.isMesh || !node.material) return;
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        const tuned = mats.map((mat) => {
+          const m = mat.clone();
+          m.metalness = 0.05;
+          m.roughness = 0.72;
+          m.alphaTest = 0;
+          m.transparent = false;
+          m.opacity = 1;
+          m.side = THREE.DoubleSide;
+          if (!m.map) {
+            m.color = fallbackColor;
+          } else {
+            m.emissive = fallbackColor.clone().multiplyScalar(0.2);
+            m.emissiveIntensity = 0.45;
+          }
+          m.needsUpdate = true;
+          return m;
+        });
+        node.material = tuned.length === 1 ? tuned[0] : tuned;
+      });
+    }
+
+    function updateSalmonStatus() {
+      if (!targetFound) return;
+      if (salmonModelsReady < 3) {
+        status.innerHTML = '<span class="dot"></span>Loading salmon…';
+        return;
+      }
+      status.innerHTML = '<span class="dot"></span>The salmon are running';
+    }
 
     // Render the diagnostic overlay. This is the whole point of this file's error
     // handling: turn MindAR's silent, endless loading spinner into a clear reason.
@@ -437,7 +473,7 @@
         target.addEventListener('targetFound', () => {
           targetFound = true;
           document.getElementById('tips').classList.remove('show');
-          status.innerHTML = '<span class="dot"></span>The salmon are running';
+          updateSalmonStatus();
         });
 
         target.addEventListener('targetLost', () => {
@@ -446,16 +482,40 @@
 
         // If the salmon model itself fails to load, say so instead of showing an
         // empty marker (which looks identical to "marker not detected").
-        const firstSalmon = document.querySelector('.salmon');
-        if (firstSalmon) {
-          firstSalmon.addEventListener('model-error', () => {
+        document.querySelectorAll('.salmon').forEach((salmonEl) => {
+          salmonEl.addEventListener('model-loaded', () => {
+            tuneSalmonMaterials(salmonEl);
+            salmonModelsReady += 1;
+            updateSalmonStatus();
+          });
+
+          salmonEl.addEventListener('model-error', () => {
             showFatal(
               "Couldn't load the salmon model",
               'The 3D model (salmon.glb) failed to load, so there is nothing to show on the marker.',
               [
                 'Make sure <code>salmon.glb</code> is deployed next to <code>index.html</code>.',
                 'Check your connection — the model is several megabytes.',
-                'Reload the page and try again.'
+                'Reload the page and wait for the model to finish downloading.'
+              ]
+            );
+          });
+        });
+
+        const salmonAsset = document.getElementById('salmon');
+        if (salmonAsset) {
+          salmonAsset.addEventListener('loaded', () => {
+            if (arReady && !targetFound) {
+              status.innerHTML = '<span class="dot"></span>Scanning — slowly fill the frame with your marker sign';
+            }
+          });
+          salmonAsset.addEventListener('error', () => {
+            showFatal(
+              "Couldn't load the salmon model",
+              'The 3D model (salmon.glb) failed to download before the app started.',
+              [
+                'The model is about 8 MB — use Wi‑Fi or wait on a slow connection, then reload.',
+                'Make sure <code>salmon.glb</code> is deployed next to <code>index.html</code>.'
               ]
             );
           });
