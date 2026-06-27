@@ -2,9 +2,31 @@
   "name": "salmon-ar",
   "version": "1.0.0",
   "private": true,
-  "description": "WebAR demo overlaying animated salmon on a printed image marker (A-Frame + MindAR).",
+  "description": "WebAR demo overlaying animated salmon on a printed image marker — Ketchikan Creek (A-Frame + MindAR).",
+  "homepage": "https://github.com/TheMitchyBoy/Salmon-AR#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheMitchyBoy/Salmon-AR.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TheMitchyBoy/Salmon-AR/issues"
+  },
+  "keywords": [
+    "webar",
+    "augmented-reality",
+    "a-frame",
+    "mindar",
+    "image-tracking",
+    "salmon",
+    "ketchikan",
+    "gltf",
+    "railway"
+  ],
+  "license": "MIT",
+  "author": "TheMitchyBoy (https://github.com/TheMitchyBoy)",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node scripts/verify.js"
   },
   "engines": {
     "node": ">=18"

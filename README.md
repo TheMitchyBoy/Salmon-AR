@@ -1,95 +1,195 @@
-# Ketchikan Creek — Salmon AR
+<p align="center">
+  <img src="docs/banner.svg" alt="Salmon AR — WebAR demo for Ketchikan Creek" width="100%" />
+</p>
 
-WebAR demo that overlays animated salmon on a printed image marker.
-Built with A-Frame + MindAR (image tracking). No app install required.
+<h1 align="center">Salmon AR</h1>
 
-## Files
-- `loading-test.html` — guaranteed-to-load test using MindAR's hosted example
-  card + model. Deploy this first to confirm the pipeline works. Point the
-  camera at the MindAR example card image.
-- `index.html` — the real salmon template. Needs these next to it:
-  - `targets.mind` — compiled from your marker image (MindAR compiler tool)
-  - `salmon.glb`  — a rigged salmon model with a swim animation
-  - `vendor/` — bundled A-Frame, MindAR and aframe-extras libraries (so the app
-    does not depend on any external CDN)
+<p align="center">
+  <strong>Point your phone at a printed salmon sign and watch fish swim upstream in augmented reality.</strong><br/>
+  No app install. No native build. Just a browser and a marker.
+</p>
 
-## IMPORTANT
-WebAR needs the camera, which browsers only allow over **https://** (any host)
-or **http://localhost**. Do NOT open these by double-clicking the file —
-`file://` is blocked because the camera is unavailable there.
+<p align="center">
+  <a href="https://github.com/TheMitchyBoy/Salmon-AR/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white" alt="Node.js 18+" /></a>
+  <a href="https://aframe.io/"><img src="https://img.shields.io/badge/A--Frame-1.6.0-EF2D5E" alt="A-Frame 1.6.0" /></a>
+  <a href="https://hiukim.github.io/mind-ar-js-doc/"><img src="https://img.shields.io/badge/MindAR-1.2.5-4cd2b0" alt="MindAR 1.2.5" /></a>
+  <a href="https://railway.app/"><img src="https://img.shields.io/badge/deploy-Railway-0B0D0E?logo=railway&logoColor=white" alt="Deploy on Railway" /></a>
+</p>
 
-The pages now detect this and show a clear on-screen message explaining the
-cause (instead of hanging on the loading spinner forever).
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#deploy">Deploy</a> ·
+  <a href="#troubleshooting">Troubleshooting</a> ·
+  <a href="#customization">Customization</a>
+</p>
 
-## Troubleshooting — "the app isn't loading"
-The most common reasons the page sits on a spinner, in order:
-1. **Opened over `file://` or plain `http://`** — the camera is blocked. Serve
-   over `https://` (GitHub Pages / Netlify / Vercel) or `http://localhost`.
-2. **Camera permission denied/dismissed** — reload and tap **Allow**. If you
-   blocked it before, clear the site permission in your browser and reload.
-3. **CDN blocked / offline** — the libraries (A-Frame, MindAR, aframe-extras)
-   are bundled locally in `vendor/` and load from the same origin as the page,
-   so no external CDN is required. A CDN is used only as a last-resort fallback
-   if a `vendor/` file is missing. Keep the `vendor/` folder next to the HTML
-   when you deploy.
-4. **Another app/tab holding the camera** — close it and reload.
+---
 
-If you see the salmon template hang but want to confirm your setup, deploy
-`loading-test.html` first — it uses MindAR's own hosted card + model, so if it
-works, your environment is fine and the issue is your local assets.
+## Overview
 
-## Troubleshooting — "I don't see the salmon (no fish swimming)"
-The page loads and the camera works, but no fish appear on the marker:
-1. **Is the marker actually detected?** The status pill at the top changes from
-   "Point your phone at the salmon sign" to **"The salmon are running"** when the
-   printed image is recognised. If it never changes, the camera isn't matching
-   `targets.mind` — improve lighting, hold the phone steady and fill the frame
-   with the sign, and make sure the printed image matches the one `targets.mind`
-   was compiled from.
-2. **Fish too small / too large?** The salmon are sized in *marker units* (marker
-   width = 1). They're tuned to ~⅓ of the marker via the `scale` on each
-   `<a-gltf-model>` in `index.html`. Raise/lower those values to taste.
-3. **Fish facing the wrong way?** Change `rotation="0 0 0"` to `rotation="0 180 0"`
-   on the models.
-4. **No tail motion?** The bundled `salmon.glb` has **no baked animation clip**,
-   so the swim (tail-wag + bob) is generated procedurally in `index.html`. If you
-   swap in a rigged model that *does* contain a clip, you can instead add
-   `animation-mixer` back to the `<a-gltf-model>` to play it.
+**Salmon AR** is a lightweight WebAR experience built for **Ketchikan Creek**. It overlays animated 3D salmon on a printed image marker using your phone's camera — powered by [A-Frame](https://aframe.io/) and [MindAR](https://hiukim.github.io/mind-ar-js-doc/) image tracking.
+
+| | |
+|---|---|
+| **Platform** | Mobile Safari (iOS) · Chrome (Android) |
+| **Stack** | HTML · A-Frame · MindAR · glTF |
+| **Hosting** | Railway (HTTPS) · Netlify · Vercel · localhost |
+| **Dependencies** | Zero npm packages — libraries are vendored |
+
+### Features
+
+- **Instant WebAR** — open a URL, allow the camera, point at the sign
+- **Self-contained** — A-Frame, MindAR, and aframe-extras ship in `vendor/` (no CDN required)
+- **Procedural swim animation** — tail-wag and drift even without a baked GLB clip
+- **Clear diagnostics** — helpful error screens instead of an endless loading spinner
+- **One-command deploy** — `npm start` serves everything over HTTPS on Railway
+
+---
+
+## Quick start
+
+### Try it locally
+
+```bash
+git clone https://github.com/TheMitchyBoy/Salmon-AR.git
+cd Salmon-AR
+npm start
+```
+
+Open **http://localhost:8080** on your phone (same Wi‑Fi) or desktop. `localhost` counts as a secure context, so the camera works.
+
+> **Note:** Do not open the HTML files directly (`file://`). Browsers block camera access outside `https://` or `http://localhost`.
+
+### Verify your setup first
+
+Deploy or serve **`loading-test.html`** before the main experience. It uses MindAR's hosted example card and model — if that works, your environment is fine and any issues are with local assets (`targets.mind`, `salmon.glb`).
+
+---
+
+## How it works
+
+```mermaid
+flowchart LR
+  A[Printed marker] -->|camera| B[MindAR tracker]
+  B -->|pose| C[A-Frame scene]
+  C --> D[3D salmon models]
+  D --> E[Drift + swim animations]
+```
+
+1. **Marker** — A printed sign is compiled into `targets.mind` with the [MindAR compiler](https://hiukim.github.io/mind-ar-js-doc/tools/compile).
+2. **Tracking** — MindAR watches the camera feed and locks virtual content to the marker.
+3. **Rendering** — A-Frame places three `salmon.glb` models on the marker, each with procedural drift (upstream motion) and swim (tail-wag + bob).
+4. **Serving** — A tiny Node static server (`server.js`) delivers assets over HTTPS in production.
+
+---
+
+## Project structure
+
+```
+Salmon-AR/
+├── index.html           # Main WebAR experience
+├── loading-test.html    # Pipeline smoke test (MindAR example assets)
+├── salmon.glb           # 3D salmon model
+├── targets.mind         # Compiled image-target data
+├── server.js            # Zero-dependency static server
+├── package.json
+├── railway.json         # Railway deploy config
+├── vendor/              # Bundled A-Frame, MindAR, aframe-extras
+└── docs/
+    └── banner.svg       # README header graphic
+```
+
+---
 
 ## Deploy
 
 ### Railway (recommended)
-This repo is set up to run on [Railway](https://railway.app) as a tiny static
-server. Railway serves the app over **https://**, which the camera (and therefore
-WebAR) requires — opening the files over `file://` or plain `http://` blocks the
-camera and is the usual reason the app "won't run".
 
-How it works:
-- `server.js` — a zero-dependency Node static server that serves `index.html`
-  and the assets on the `$PORT` Railway provides.
-- `package.json` — `npm start` runs the server (Node 18+).
-- `railway.json` — tells Railway to build with Nixpacks and run `npm start`.
+This repo is configured for [Railway](https://railway.app) out of the box. Railway terminates TLS, which WebAR requires for camera access.
 
-Steps:
-1. Go to [railway.app](https://railway.app) → **New Project** →
-   **Deploy from GitHub repo** → pick this repo.
-2. Railway auto-detects Node, installs, and runs `npm start`. No env vars needed
-   (`PORT` is injected automatically).
-3. In the service's **Settings → Networking**, click **Generate Domain** to get
-   a public `https://…up.railway.app` URL.
-4. Open that URL on your phone and tap **Allow** when asked for the camera.
+1. **New Project** → **Deploy from GitHub repo** → select **Salmon-AR**
+2. Railway detects Node, runs `npm start` (no env vars needed — `PORT` is injected)
+3. **Settings → Networking** → **Generate Domain** for a public `https://…up.railway.app` URL
+4. Open the URL on your phone and tap **Allow** for the camera
 
 Every push to the connected branch redeploys automatically.
 
-#### Run it locally
-```
-npm start            # serves on http://localhost:8080
-# or pick a port:
-PORT=3000 npm start
-```
-`http://localhost` is treated as a secure context, so the camera works locally
-too.
+### Alternatives
 
-### Alternative (Netlify / Vercel)
-Connect the repo to Netlify or Vercel (free) — every push auto-deploys to https.
-Then open the https URL on your phone.
+| Platform | Notes |
+|----------|-------|
+| **Netlify / Vercel** | Connect the repo — static hosting with free HTTPS |
+| **GitHub Pages** | Works if served over HTTPS; ensure `vendor/` and binary assets deploy |
+| **Local** | `npm start` or `PORT=3000 npm start` |
+
+---
+
+## Troubleshooting
+
+<details>
+<summary><strong>App stuck on loading spinner</strong></summary>
+
+Common causes, in order:
+
+1. **Insecure context** — opened via `file://` or plain `http://` (not localhost). Serve over `https://` or `http://localhost`.
+2. **Camera permission denied** — reload and tap **Allow**. Clear site permissions if you blocked it earlier.
+3. **Missing `vendor/`** — libraries load locally; keep `vendor/` next to the HTML when deploying.
+4. **Camera in use** — close other apps or tabs using the camera, then reload.
+
+Try `loading-test.html` to isolate environment vs. asset issues.
+
+</details>
+
+<details>
+<summary><strong>Camera works but no salmon appear</strong></summary>
+
+1. **Marker not detected** — the status pill should change to *"The salmon are running"*. Improve lighting, hold steady, and confirm the print matches the image used to compile `targets.mind`.
+2. **Fish too small/large** — adjust `scale` on each `<a-gltf-model>` in `index.html` (marker width = 1 unit).
+3. **Wrong facing** — change `rotation="0 0 0"` to `rotation="0 180 0"` if models face away.
+4. **No tail motion** — `salmon.glb` has no baked clip; swim is procedural. Swap in a rigged model with clips and add `animation-mixer` if preferred.
+
+</details>
+
+---
+
+## Customization
+
+| Goal | Where to look |
+|------|----------------|
+| Change fish count, size, speed | `index.html` — `<a-gltf-model>` entities inside `[mindar-image-target]` |
+| Swap the 3D model | Replace `salmon.glb`, update `<a-asset-item>` |
+| New marker image | Recompile with MindAR compiler → replace `targets.mind` |
+| Status copy / UI colors | `#status` styles and JS event handlers in `index.html` |
+
+---
+
+## Development
+
+```bash
+npm start            # http://localhost:8080
+PORT=3000 npm start  # custom port
+```
+
+**Requirements:** Node.js 18+
+
+There are no build steps or npm dependencies. The server exists solely to serve static files with correct MIME types for `.glb` and `.mind` assets.
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+---
+
+## License
+
+[MIT](LICENSE) © [TheMitchyBoy](https://github.com/TheMitchyBoy)
+
+---
+
+<p align="center">
+  <sub>Built for Ketchikan Creek · WebAR without the app store</sub>
+</p>

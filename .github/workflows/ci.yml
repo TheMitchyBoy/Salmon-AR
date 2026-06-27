@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify required assets
+        run: npm test
+
+      - name: Smoke-test static server
+        run: |
+          node server.js &
+          PID=$!
+          sleep 1
+          curl -sf http://localhost:8080/ | grep -q 'Salmon AR'
+          curl -sf -o /dev/null -w '%{http_code}' http://localhost:8080/salmon.glb | grep -q 200
+          kill $PID

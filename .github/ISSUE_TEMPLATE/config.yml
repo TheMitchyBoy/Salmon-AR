@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Deployment guide
+    url: https://github.com/TheMitchyBoy/Salmon-AR#deploy
+    about: Railway, Netlify, Vercel, and local setup instructions
+  - name: Troubleshooting
+    url: https://github.com/TheMitchyBoy/Salmon-AR#troubleshooting
+    about: Common fixes for loading spinners and missing salmon
