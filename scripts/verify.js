@@ -15,6 +15,7 @@ const REQUIRED = [
   'server.js',
   'lib/store.js',
   'lib/auth.js',
+  'lib/upload.js',
   'package.json',
   'salmon.glb',
   'targets.mind',

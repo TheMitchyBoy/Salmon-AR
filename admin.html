@@ -151,6 +151,12 @@
           </div>
           <div class="progress" id="progress"></div>
           <div class="status" id="compile-status"></div>
+          <p class="status" id="resize-hint" style="margin-top:8px;font-size:13px">
+            Phone photos are auto-resized to 1280px before compile — this keeps uploads small and tracking reliable.
+          </p>
+          <div class="actions" style="margin-top:10px">
+            <button class="secondary" id="download-btn" disabled>Download .mind backup</button>
+          </div>
           <div class="preview-grid" id="preview-grid"></div>
         </section>
 
@@ -169,6 +175,8 @@
 
   <script>
     const TOKEN_KEY = 'salmon-ar-admin-token';
+    const MAX_IMAGE_EDGE = 1280;
+    const MAX_UPLOAD_MB = 8;
     let token = localStorage.getItem(TOKEN_KEY) || '';
     let pendingFiles = [];
     let compiledBuffer = null;
@@ -187,6 +195,7 @@
       compileBtn: document.getElementById('compile-btn'),
       clearBtn: document.getElementById('clear-btn'),
       publishBtn: document.getElementById('publish-btn'),
+      downloadBtn: document.getElementById('download-btn'),
       progress: document.getElementById('progress'),
       compileStatus: document.getElementById('compile-status'),
       previewGrid: document.getElementById('preview-grid'),
@@ -245,6 +254,40 @@
       els.compileBtn.disabled = !hasFiles;
       els.clearBtn.disabled = !hasFiles && !compiledBuffer;
       els.publishBtn.disabled = !compiledBuffer;
+      els.downloadBtn.disabled = !compiledBuffer;
+    }
+
+    function downloadCompiledMind() {
+      if (!compiledBuffer) return;
+      const blob = new Blob([compiledBuffer], { type: 'application/octet-stream' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'targets.mind';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    async function prepareImage(file) {
+      const img = await loadImage(file);
+      const longest = Math.max(img.width, img.height);
+      if (longest <= MAX_IMAGE_EDGE) return { img, resized: false };
+
+      const scale = MAX_IMAGE_EDGE / longest;
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+
+      const resized = await new Promise((resolve, reject) => {
+        const next = new Image();
+        next.onload = () => resolve(next);
+        next.onerror = reject;
+        next.src = canvas.toDataURL('image/jpeg', 0.9);
+      });
+
+      return { img: resized, resized: true, from: `${img.width}×${img.height}`, to: `${w}×${h}` };
     }
 
     function loadImage(file) {
@@ -311,7 +354,17 @@
 
       try {
         const images = [];
-        for (const file of pendingFiles) images.push(await loadImage(file));
+        const resizeNotes = [];
+        for (const file of pendingFiles) {
+          const prepared = await prepareImage(file);
+          images.push(prepared.img);
+          if (prepared.resized) {
+            resizeNotes.push(`${file.name}: ${prepared.from} → ${prepared.to}`);
+          }
+        }
+        if (resizeNotes.length) {
+          els.progress.textContent = `Resized ${resizeNotes.length} image(s) for upload.`;
+        }
 
         const dataList = await compiler.compileImageTargets(images, (p) => {
           els.progress.textContent = `Compiling… ${p.toFixed(1)}%`;
@@ -319,8 +372,12 @@
 
         for (const data of dataList) showFeaturePreview(data);
         compiledBuffer = await compiler.exportData();
+        const kb = (compiledBuffer.byteLength / 1024).toFixed(1);
         els.progress.textContent = 'Compilation complete.';
-        setStatus(els.compileStatus, `Ready to publish · ${pendingFiles.length} image(s) · ${(compiledBuffer.byteLength / 1024).toFixed(1)} KB`, 'ok');
+        const sizeWarn = compiledBuffer.byteLength > MAX_UPLOAD_MB * 1024 * 1024
+          ? ` · WARNING: ${kb} KB exceeds ${MAX_UPLOAD_MB} MB upload limit — use a smaller image`
+          : '';
+        setStatus(els.compileStatus, `Ready to publish · ${pendingFiles.length} image(s) · ${kb} KB${sizeWarn}`, sizeWarn ? 'err' : 'ok');
         updateButtons();
       } catch (err) {
         els.progress.textContent = '';
@@ -330,10 +387,25 @@
 
     async function publishTarget() {
       if (!compiledBuffer) return;
-      setStatus(els.compileStatus, 'Uploading…', '');
+
+      if (compiledBuffer.byteLength > MAX_UPLOAD_MB * 1024 * 1024) {
+        setStatus(els.compileStatus, `File is ${(compiledBuffer.byteLength / (1024 * 1024)).toFixed(1)} MB — max ${MAX_UPLOAD_MB} MB. Re-compile with a smaller image, or use Download .mind backup.`, 'err');
+        return;
+      }
+
+      setStatus(els.compileStatus, 'Checking server…', '');
+      try {
+        await api('/api/health');
+      } catch (err) {
+        setStatus(els.compileStatus, `Server not reachable: ${err.message}`, 'err');
+        return;
+      }
+
+      setStatus(els.compileStatus, `Uploading ${(compiledBuffer.byteLength / 1024).toFixed(1)} KB…`, '');
       try {
         const name = els.setName.value.trim() || `Target set ${new Date().toLocaleString()}`;
         const imageNames = pendingFiles.map((f) => f.name);
+        const blob = new Blob([compiledBuffer], { type: 'application/octet-stream' });
 
         await api('/api/targets', {
           method: 'POST',
@@ -343,7 +415,7 @@
             'X-Target-Name': encodeURIComponent(name),
             'X-Image-Names': encodeURIComponent(JSON.stringify(imageNames)),
           },
-          body: compiledBuffer,
+          body: blob,
         });
 
         setStatus(els.compileStatus, 'Published and set as the live AR target.', 'ok');
@@ -360,7 +432,8 @@
           setStatus(els.loginError, err.message, 'err');
           els.loginError.classList.remove('hidden');
         }
-        setStatus(els.compileStatus, err.message, 'err');
+        const hint = ' Try Download .mind backup, or sign in again on desktop Wi‑Fi.';
+        setStatus(els.compileStatus, err.message + hint, 'err');
       }
     }
 
@@ -497,6 +570,7 @@
       renderFileList();
     };
     els.publishBtn.onclick = publishTarget;
+    els.downloadBtn.onclick = downloadCompiledMind;
     els.refreshBtn.onclick = loadTargets;
 
     boot();

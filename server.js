@@ -3,14 +3,17 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { URL } = require('url');
 
 const store = require('./lib/store');
 const auth = require('./lib/auth');
+const { streamBodyToFile } = require('./lib/upload');
 
 const PORT = process.env.PORT || 8080;
 const HOST = '0.0.0.0';
 const ROOT = __dirname;
+const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_MB || 8) * 1024 * 1024;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -90,6 +93,8 @@ async function handleApi(req, res, urlPath) {
       ok: true,
       adminEnabled: auth.adminEnabled(),
       dataDir: store.DATA_DIR,
+      maxUploadMB: Math.round(MAX_UPLOAD_BYTES / (1024 * 1024)),
+      recommendedImageEdge: 1280,
     });
   }
 
@@ -133,8 +138,14 @@ async function handleApi(req, res, urlPath) {
 
       // Preferred: raw binary upload (avoids huge base64 JSON payloads that crash fetch).
       if (contentType.includes('application/octet-stream')) {
-        const mindBuffer = await readBody(req, 50 * 1024 * 1024);
-        if (!mindBuffer.length) return json(res, 400, { error: 'Empty upload body' });
+        const tempId = crypto.randomBytes(8).toString('hex');
+        const tempPath = path.join(store.TARGETS_DIR, `${tempId}.upload.tmp`);
+
+        const bytes = await streamBodyToFile(req, tempPath, MAX_UPLOAD_BYTES);
+        if (!bytes) {
+          fs.unlink(tempPath, () => {});
+          return json(res, 400, { error: 'Empty upload body' });
+        }
 
         let imageNames = [];
         const rawNames = req.headers['x-image-names'];
@@ -145,17 +156,27 @@ async function handleApi(req, res, urlPath) {
             try {
               imageNames = JSON.parse(rawNames);
             } catch {
+              fs.unlink(tempPath, () => {});
               return json(res, 400, { error: 'Invalid X-Image-Names header' });
             }
           }
         }
 
-        const name = decodeURIComponent(req.headers['x-target-name'] || 'Untitled target set');
-        const entry = store.createTarget({ name, imageNames, mindBuffer });
+        let name = 'Untitled target set';
+        const rawName = req.headers['x-target-name'];
+        if (rawName) {
+          try {
+            name = decodeURIComponent(rawName);
+          } catch {
+            name = rawName;
+          }
+        }
+
+        const entry = store.createTargetFromFile({ name, imageNames, sourcePath: tempPath });
         return json(res, 201, entry);
       }
 
-      const body = JSON.parse((await readBody(req, 50 * 1024 * 1024)).toString('utf8'));
+      const body = JSON.parse((await readBody(req, MAX_UPLOAD_BYTES)).toString('utf8'));
       if (!body.mindBase64) return json(res, 400, { error: 'mindBase64 is required' });
       const mindBuffer = Buffer.from(body.mindBase64, 'base64');
       if (!mindBuffer.length) return json(res, 400, { error: 'mindBase64 is empty' });
@@ -168,8 +189,13 @@ async function handleApi(req, res, urlPath) {
       return json(res, 201, entry);
     } catch (err) {
       console.error('POST /api/targets failed:', err);
-      const status = err.message === 'Payload too large' ? 413 : 400;
-      return json(res, status, { error: err.message || 'Invalid request body' });
+      if (err.message && err.message.includes('too large')) {
+        return json(res, 413, { error: err.message });
+      }
+      if (err.message && err.message.includes('Could not save')) {
+        return json(res, 507, { error: err.message });
+      }
+      return json(res, 400, { error: err.message || 'Invalid request body' });
     }
   }
 
